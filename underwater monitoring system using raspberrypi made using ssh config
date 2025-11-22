@@ -1,0 +1,45 @@
+import time
+import board
+import busio
+from w1thermsensor import W1ThermSensor
+from adafruit_ads1x15.analog_in import AnalogIn
+import adafruit_ads1x15.ads1115 as ADS
+from RPLCD.i2c import CharLCD
+
+i2c = busio.I2C(board.SCL, board.SDA)
+ads = ADS.ADS1115(i2c)
+lcd = CharLCD('PCF8574', 0x27)
+
+tds_channel = AnalogIn(ads, ADS.P0)
+ph_channel = AnalogIn(ads, ADS.P1)
+
+sensor = W1ThermSensor()
+
+def read_temperature():
+    return sensor.get_temperature()
+
+def read_tds(voltage, temp):
+    compensation = 1 + 0.02 * (temp - 25)
+    compensated = voltage / compensation
+    tds = (133.42 * compensated ** 3 - 255.86 * compensated ** 2 + 857.39 * compensated) * 0.5
+    return tds
+
+def read_ph(voltage):
+    ph = 7 + ((2.5 - voltage) * 3.5)
+    return ph
+
+while True:
+    temp = read_temperature()
+
+    tds_voltage = tds_channel.voltage
+    ph_voltage = ph_channel.voltage
+
+    tds_value = read_tds(tds_voltage, temp)
+    ph_value = read_ph(ph_voltage)
+
+    lcd.clear()
+    lcd.write_string("T:{:.2f}C PH:{:.2f}".format(temp, ph_value))
+    lcd.crlf()
+    lcd.write_string("TDS:{:.2f}ppm".format(tds_value))
+
+    time.sleep(0.5)
